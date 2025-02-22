@@ -1,6 +1,6 @@
-import fetch from "node-fetch";
-import { createHash } from 'node:crypto';
-import crc32 from 'crc/crc32';
+const fetch = require("node-fetch");
+const createHash = require("node:crypto").createHash;
+const crc32 = require("crc/crc32");
 
 const BASE_URL = "https://energy.franklinwh.com/";
 const MAX_RETRIES = 5;
@@ -14,6 +14,7 @@ class Api {
         this.password = hash.digest("hex");
         this.gateway = gateway;
         this.base = base || BASE_URL;
+        this.lang = "en_US";
         this._seqnr = 1;
     }
 
@@ -23,7 +24,7 @@ class Api {
             body: new URLSearchParams({
                 account: this.username,
                 password: this.password,
-                lang: "en_US",
+                lang: this.lang,
                 type: 1
             })
         });
@@ -47,7 +48,7 @@ class Api {
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                    lang: "EN_US",
+                    lang: this.lang,
                     cmdType: cmd,
                     equipNo: this.gateway,
                     type: 0,
@@ -96,9 +97,29 @@ class Api {
         };
     }
 
+    async getAccessoryList() {
+        const q = new URLSearchParams({
+            gatewayId: this.gateway,
+            lang: this.lang
+        });
+        const res = await fetch(`${this.base}hes-gateway/terminal/getIotAccessoryList?${q}`, {
+            method: "GET",
+            headers: {
+                loginToken: this.token
+            }
+        });
+        const json = await res.json();
+        if (json.success) {
+            return json.result;
+        }
+        else {
+            throw new Error(json.message);
+        }
+    }
+
 }
 
-export async function connect(username, password, gateway, base) {
+module.exports = async function connect(username, password, gateway, base) {
     const api = new Api(username, password, gateway, base);
     return await api.login();
-}
+};
