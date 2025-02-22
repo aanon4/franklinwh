@@ -67,6 +67,7 @@ class Api {
                     await this.login();
                     break;
                 case 102: // Timeout - retry
+                    await new Promise(resolve => setTimeout(resolve, 1000));
                     break;
                 case 136: // Offline
                 case 400: // No gateway
@@ -74,7 +75,7 @@ class Api {
                     throw new Error(json.message);
             }
         }
-        return new Error("Too many retries");
+        throw new Error("Too many retries");
     }
 
     async _getData() {
