@@ -104,7 +104,14 @@ class Api {
             loadOut: stats.p_load,
             gridOut: stats.p_uti,
             batteryOut: stats.p_fhp,
-            chargePercentage: stats.soc
+            chargePercentage: stats.soc,
+            solarInKWh: stats.kwh_sun,
+            generatorInKWh: stats.kwh_gen,
+            loadOutKWh: stats.kwh_load,
+            gridInKWh: stats.kwh_uti_in,
+            gridOutKWh: stats.kwh_uti_out,
+            batteryInKWh: stats.kwh_fhp_chg,
+            batteryOutKWh: stats.kwh_fhp_di
         };
     }
 
