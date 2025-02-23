@@ -152,11 +152,11 @@ class Api {
         const json = await this._getSwitches();
         switch (json.runingMode) {
             case 44609:
-                return "TOU";
+                return "tou";
             case 37298:
-                return "SELF";
+                return "self";
             case 35183:
-                return "EMER";
+                return "emer";
             default:
                 return json.runingMode;
         }
@@ -167,13 +167,13 @@ class Api {
         switch (mode) {
             default:
                 throw new Error(`Unknown mode: ${mode}`);
-            case "TOU":
+            case "tou":
                 cmd = { currendId: 44609, workMode: 1 };
                 break;
-            case "SELF":
+            case "self":
                 cmd = { currendId: 37298, workMode: 2 };
                 break;
-            case "EMER":
+            case "emer":
                 cmd = { currendId: 35183, workMode: 3 };
                 break;
         }

@@ -1,6 +1,6 @@
 {
   "name": "franklinwh",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "FranklinWH API Client",
   "main": "index.js",
   "scripts": {
