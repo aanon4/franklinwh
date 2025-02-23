@@ -207,21 +207,21 @@ class Api {
         if (json.Sw1Name) {
             smart.push({
                 name: json.Sw1Name,
-                id: "Sw1",
+                id: "sw1",
                 state: !!json.Sw1ProLoad
             });
         }
         if (!json.SwMerge && json.Sw2Name) {
             smart.push({
                 name: json.Sw2Name,
-                id: "Sw2",
+                id: "sw2",
                 state: !!json.Sw2ProLoad
             });
         }
         if (json.Sw3Name) {
             smart.push({
                 name: json.Sw3Name,
-                id: "Sw3",
+                id: "sw3",
                 state: !!json.Sw3ProLoad
             });
         }
@@ -232,13 +232,13 @@ class Api {
         const json = await this._getData();
         for (let i = 0; i < switches.length; i++) {
             switch (switches[i].id) {
-                case "Sw1":
+                case "sw1":
                     switches[i].state = !!json.pro_load[0];
                     break;
-                case "Sw2":
+                case "sw2":
                     switches[i].state = !!json.pro_load[1];
                     break;
-                case "Sw3":
+                case "sw3":
                     switches[i].state = !!json.pro_load[2];
                     break;
                 default:
@@ -260,7 +260,7 @@ class Api {
 
         for (let i = 0; i < switches.length; i++) {
             switch (switches[i].id) {
-                case "Sw1":
+                case "sw1":
                     current.Sw1MsgType = 1;
                     if (switches[i].state) {
                         current.Sw1Mode = 1;
@@ -281,7 +281,7 @@ class Api {
                         }
                     }
                     break;
-                case "Sw2":
+                case "sw2":
                     current.Sw2MsgType = 1;
                     if (switches[i].state) {
                         current.Sw2Mode = 1;
@@ -292,7 +292,7 @@ class Api {
                         current.Sw2ProLoad = 1;
                     }
                     break;
-                case "Sw3":
+                case "sw3":
                     current.Sw3MsgType = 1;
                     if (switches[i].state) {
                         current.Sw3Mode = 1;
