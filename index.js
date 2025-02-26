@@ -33,7 +33,7 @@ class Api {
 
     async cache(name, updateFn) {
         const c = this._cache[name];
-        if (c && c.time < Date.now()) {
+        if (c && Date.now() < c.time) {
             return c.data;
         }
         else {
