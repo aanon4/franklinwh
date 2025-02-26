@@ -6,6 +6,14 @@ const crc32 = require("crc/crc32");
 
 const BASE_URL = "https://energy.franklinwh.com/";
 const MAX_RETRIES = 5;
+const WORK_MODES = {
+    tou: 1,
+    self: 2,
+    emer: 3,
+    1: "tou",
+    2: "self",
+    3: "emer"
+};
 
 class Api {
 
@@ -38,22 +46,9 @@ class Api {
             const list = tou.list;
             for (let i = 0; i < list.length; i++) {
                 const e = list[i];
-                switch (e.workMode) {
-                    case 1:
-                        this._modes.tou = e.id;
-                        this._modes[e.id] = "tou";
-                        break;
-                    case 2:
-                        this._modes.self = e.id;
-                        this._modes[e.id] = "self";
-                        break;
-                    case 3:
-                        this._modes.emer = e.id;
-                        this._modes[e.id] = "emer";
-                        break;
-                    default:
-                        break;
-                }
+                const mode = WORK_MODES[e.workMode];
+                this._modes[mode] = e.id;
+                this._modes[e.id] = mode;
             }
             return this;
         }
@@ -201,24 +196,12 @@ class Api {
     }
 
     async setMode(mode) {
-        let cmd;
-        switch (mode) {
-            default:
-                throw new Error(`Unknown mode: ${mode}`);
-            case "tou":
-                cmd = { currendId: this._modes.tou, workMode: 1 };
-                break;
-            case "self":
-                cmd = { currendId: this._modes.self, workMode: 2 };
-                break;
-            case "emer":
-                cmd = { currendId: this._modes.emer, workMode: 3 };
-                break;
+        const workMode = WORK_MODES[mode];
+        if (!workMode) {
+            throw new Error(`Unknown mode: ${mode}`);
         }
+        const currentId = this._modes[mode];
         const current = await this._getSwitches();
-        if (current.runingMode == cmd.currendId) {
-            return true;
-        }
         const res = await fetch(`${this.base}hes-gateway/terminal/tou/updateTouMode`, {
             method: "POST",
             headers: {
@@ -231,8 +214,38 @@ class Api {
                 lang: this.lang,
                 oldIndex: "1",
                 stromEn: current.stromEn,
-                currendId: cmd.currendId,
-                workMode: cmd.workMode
+                currendId: currentId,
+                workMode: workMode
+            })
+        });
+        const json = await res.json();
+        return json.success;
+    }
+
+    async getReserve() {
+        const tou = await this._getTouList();
+        const current = tou.list.find(e => e.id == tou.currendId);
+        return current.soc;
+    }
+
+    async setReserve(percentage) {
+        percentage = Math.min(Math.max(percentage, 5), 100);
+        const current = await this._getSwitches();
+        const res = await fetch(`${this.base}hes-gateway/terminal/tou/updateTouMode`, {
+            method: "POST",
+            headers: {
+                loginToken: this.token,
+                "Content-Type": "application/x-www-form-urlencoded",
+                optsource: "3"
+            },
+            body: new URLSearchParams({
+                gatewayId: this.gateway,
+                lang: this.lang,
+                oldIndex: "1",
+                stromEn: current.stromEn,
+                currendId: current.runingMode,
+                workMode: WORK_MODES[this._modes[current.runingMode]],
+                soc: percentage
             })
         });
         const json = await res.json();
