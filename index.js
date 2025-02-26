@@ -268,7 +268,7 @@ class Api {
     }
 
     async setReserve(percentage) {
-        percentage = Math.min(Math.max(percentage, 5), 100);
+        percentage = Math.round(Math.min(Math.max(percentage, 5), 100));
         const current = await this._getSwitches();
         if (this._modes[current.runingMode] === "emer") {
             throw new Error("Cannot set reserve in Emergency Backup mode");
