@@ -6,6 +6,7 @@ const crc32 = require("crc/crc32");
 
 const BASE_URL = "https://energy.franklinwh.com/";
 const MAX_RETRIES = 5;
+const CACHE_TIME = 1000;
 const WORK_MODES = {
     tou: 1,
     self: 2,
@@ -27,6 +28,23 @@ class Api {
         this.lang = "en_US";
         this._seqnr = 1;
         this._modes = {};
+        this._cache = {};
+    }
+
+    async cache(name, updateFn) {
+        const c = this._cache[name];
+        if (c && c.time < Date.now()) {
+            return c.data;
+        }
+        else {
+            const value = await updateFn();
+            this._cache[name] = { time: Date.now() + CACHE_TIME, data: value };
+            return value;
+        }
+    }
+
+    clearCache() {
+        this._cache = {};
     }
 
     async login() {
@@ -42,13 +60,16 @@ class Api {
         const json = await res.json();
         if (json.success) {
             this.token = json.result.token;
+            this.clearCache();
             const tou = await this._getTouList();
             const list = tou.list;
             for (let i = 0; i < list.length; i++) {
                 const e = list[i];
                 const mode = WORK_MODES[e.workMode];
-                this._modes[mode] = e.id;
-                this._modes[e.id] = mode;
+                if (mode) {
+                    this._modes[mode] = e.id;
+                    this._modes[e.id] = mode;
+                }
             }
             return this;
         }
@@ -98,37 +119,43 @@ class Api {
     }
 
     async _getData() {
-        const response = await this._mqttSend(203, {
-            opt: 1,
-            refreshData: 1
+        return await this.cache("data", async () => {
+            const response = await this._mqttSend(203, {
+                opt: 1,
+                refreshData: 1
+            });
+            return JSON.parse(response.result.dataArea);
         });
-        return JSON.parse(response.result.dataArea);
     }
 
     async _getSwitches() {
-        const response = await this._mqttSend(311, {
-            opt: 0,
-            order: this.gateway
+        return await this.cache("switches", async () => {
+            const response = await this._mqttSend(311, {
+                opt: 0,
+                order: this.gateway
+            });
+            return JSON.parse(response.result.dataArea);
         });
-        return JSON.parse(response.result.dataArea);
     }
 
     async _getTouList() {
-        const res = await fetch(`${this.base}hes-gateway/terminal/tou/getGatewayTouList`, {
-            method: "POST",
-            headers: {
-                loginToken: this.token
-            },
-            body: new URLSearchParams({
-                gatewayId: this.gateway,
-                lang: this.lang
-            })
-        });
-        const json = await res.json();
-        if (json.success) {
+        return await this.cache("tou", async () => {
+            const res = await fetch(`${this.base}hes-gateway/terminal/tou/getGatewayTouList`, {
+                method: "POST",
+                headers: {
+                    loginToken: this.token
+                },
+                body: new URLSearchParams({
+                    gatewayId: this.gateway,
+                    lang: this.lang
+                })
+            });
+            const json = await res.json();
+            if (!json.success) {
+                throw new Error(json.message);
+            }
             return json.result;
-        }
-        throw new Error(json.message);
+        });
     }
 
     async getAGateStatus() {
@@ -151,48 +178,48 @@ class Api {
     }
 
     async getAccessoryList() {
-        const q = new URLSearchParams({
-            gatewayId: this.gateway,
-            lang: this.lang
-        });
-        const res = await fetch(`${this.base}hes-gateway/terminal/getIotAccessoryList?${q}`, {
-            method: "GET",
-            headers: {
-                loginToken: this.token
+        return this.cache("accessory", async () => {
+            const q = new URLSearchParams({
+                gatewayId: this.gateway,
+                lang: this.lang
+            });
+            const res = await fetch(`${this.base}hes-gateway/terminal/getIotAccessoryList?${q}`, {
+                method: "GET",
+                headers: {
+                    loginToken: this.token
+                }
+            });
+            const json = await res.json();
+            if (!json.success) {
+                throw new Error(json.message);
             }
-        });
-        const json = await res.json();
-        if (json.success) {
             return json.result;
-        }
-        else {
-            throw new Error(json.message);
-        }
+        });
     }
 
     async getControls() {
-        const q = new URLSearchParams({
-            id: this.gateway,
-            lang: this.lang
-        });
-        const res = await fetch(`${this.base}hes-gateway/terminal/selectTerGatewayControlLoadByGatewayId?${q}`, {
-            method: "GET",
-            headers: {
-                loginToken: this.token
+        return this.cache("controls", async () => {
+            const q = new URLSearchParams({
+                id: this.gateway,
+                lang: this.lang
+            });
+            const res = await fetch(`${this.base}hes-gateway/terminal/selectTerGatewayControlLoadByGatewayId?${q}`, {
+                method: "GET",
+                headers: {
+                    loginToken: this.token
+                }
+            });
+            const json = await res.json();
+            if (!json.success) {
+                throw new Error(json.message);
             }
-        });
-        const json = await res.json();
-        if (json.success) {
             return json.result;
-        }
-        else {
-            throw new Error(json.message);
-        }
+        });
     }
 
     async getMode() {
-        const json = await this._getData();
-        return this._modes[json.mode] || json.mode;
+        const tou = await this._getTouList(); // Reports correct mode even when grid is down
+        return this._modes[tou.currendId] || tou.currendId;
     }
 
     async setMode(mode) {
@@ -219,6 +246,7 @@ class Api {
             })
         });
         const json = await res.json();
+        this.clearCache();
         return json.success;
     }
 
@@ -231,6 +259,9 @@ class Api {
     async setReserve(percentage) {
         percentage = Math.min(Math.max(percentage, 5), 100);
         const current = await this._getSwitches();
+        if (this._modes[current.runingMode] === "emer") {
+            throw new Error("Cannot set reserve in Emergency Backup mode");
+        }
         const res = await fetch(`${this.base}hes-gateway/terminal/tou/updateTouMode`, {
             method: "POST",
             headers: {
@@ -249,7 +280,13 @@ class Api {
             })
         });
         const json = await res.json();
+        this.clearCache();
         return json.success;
+    }
+
+    async isGridOnline() {
+        const data = await this._getData()
+        return data.elecnet_state == 0 ? true : false;
     }
 
     async getSmartSwitches() {
@@ -358,8 +395,8 @@ class Api {
                     break;
             }
         }
-
         const json = await this._mqttSend(311, current);
+        this.clearCache();
         return json.success;
     }
 
