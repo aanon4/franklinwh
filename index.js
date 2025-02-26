@@ -61,20 +61,31 @@ class Api {
         if (json.success) {
             this.token = json.result.token;
             this.clearCache();
-            const tou = await this._getTouList();
-            const list = tou.list;
-            for (let i = 0; i < list.length; i++) {
-                const e = list[i];
-                const mode = WORK_MODES[e.workMode];
-                if (mode) {
-                    this._modes[mode] = e.id;
-                    this._modes[e.id] = mode;
-                }
+            if (this.gateway) {
+                await this._discoverModes();
             }
             return this;
         }
         else {
             throw new Error(json.message);
+        }
+    }
+
+    async setGateway(gateway) {
+        this.gateway = gateway;
+        await this._discoverModes();
+    }
+
+    async _discoverModes() {
+        const tou = await this._getTouList();
+        const list = tou.list;
+        for (let i = 0; i < list.length; i++) {
+            const e = list[i];
+            const mode = WORK_MODES[e.workMode];
+            if (mode) {
+                this._modes[mode] = e.id;
+                this._modes[e.id] = mode;
+            }
         }
     }
 
