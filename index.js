@@ -18,6 +18,7 @@ class Api {
         this.base = base || BASE_URL;
         this.lang = "en_US";
         this._seqnr = 1;
+        this._modes = {};
     }
 
     async login() {
@@ -33,6 +34,27 @@ class Api {
         const json = await res.json();
         if (json.success) {
             this.token = json.result.token;
+            const tou = await this._getTouList();
+            const list = tou.list;
+            for (let i = 0; i < list.length; i++) {
+                const e = list[i];
+                switch (e.workMode) {
+                    case 1:
+                        this._modes.tou = e.id;
+                        this._modes[e.id] = "tou";
+                        break;
+                    case 2:
+                        this._modes.self = e.id;
+                        this._modes[e.id] = "self";
+                        break;
+                    case 3:
+                        this._modes.emer = e.id;
+                        this._modes[e.id] = "emer";
+                        break;
+                    default:
+                        break;
+                }
+            }
             return this;
         }
         else {
@@ -96,6 +118,24 @@ class Api {
         return JSON.parse(response.result.dataArea);
     }
 
+    async _getTouList() {
+        const res = await fetch(`${this.base}hes-gateway/terminal/tou/getGatewayTouList`, {
+            method: "POST",
+            headers: {
+                loginToken: this.token
+            },
+            body: new URLSearchParams({
+                gatewayId: this.gateway,
+                lang: this.lang
+            })
+        });
+        const json = await res.json();
+        if (json.success) {
+            return json.result;
+        }
+        throw new Error(json.message);
+    }
+
     async getAGateStatus() {
         const stats = await this._getData();
         return {
@@ -156,17 +196,8 @@ class Api {
     }
 
     async getMode() {
-        const json = await this._getSwitches();
-        switch (json.runingMode) {
-            case 44609:
-                return "tou";
-            case 37298:
-                return "self";
-            case 35183:
-                return "emer";
-            default:
-                return json.runingMode;
-        }
+        const json = await this._getData();
+        return this._modes[json.mode] || json.mode;
     }
 
     async setMode(mode) {
@@ -175,13 +206,13 @@ class Api {
             default:
                 throw new Error(`Unknown mode: ${mode}`);
             case "tou":
-                cmd = { currendId: 44609, workMode: 1 };
+                cmd = { currendId: this._modes.tou, workMode: 1 };
                 break;
             case "self":
-                cmd = { currendId: 37298, workMode: 2 };
+                cmd = { currendId: this._modes.self, workMode: 2 };
                 break;
             case "emer":
-                cmd = { currendId: 35183, workMode: 3 };
+                cmd = { currendId: this._modes.emer, workMode: 3 };
                 break;
         }
         const current = await this._getSwitches();
